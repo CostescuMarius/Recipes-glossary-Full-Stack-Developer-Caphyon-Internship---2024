@@ -31,7 +31,7 @@ function App() {
 
   useEffect(() => {
     getRecipes();
-  });
+  }, []);
 
   return (
     <Grid container direction={"column"} gap='20px'>

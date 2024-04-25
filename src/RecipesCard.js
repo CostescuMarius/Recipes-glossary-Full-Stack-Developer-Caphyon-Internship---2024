@@ -3,35 +3,48 @@ import {
     Card, CardContent, Table, TableHead, TableBody,
     TableRow, TableCell, TableContainer, TablePagination,
     LinearProgress, Grid, Dialog, DialogTitle, DialogContent, DialogContentText,
-    List, ListItem, ListItemText, ListItemIcon, TextField, Autocomplete
+    List, ListItem, ListItemText, ListItemIcon, TextField, Autocomplete, Paper,
+    Typography, IconButton
 } from '@mui/material';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
+import SortIcon from '@mui/icons-material/Sort';
 
 function RecipesCard({ areRecipesLoading, recipes, driver }) {
     const rowsPerPage = 20;
 
     const [page, setPage] = useState(0);
-    const [openPopUp, setOpenPopUp] = useState(false);
+    const [openRecipePopUp, setOpenRecipePopUp] = useState(false);
 
     const [selectedRecipe, setSelectedRecipe] = useState();
     const [recipeDetails, setRecipeDetails] = useState();
     const [areRecipeDetailsLoading, setAreRecipeDetailsLoading] = useState();
 
-    const [searchedRecipes, setSearchedRecipes] = useState([]);
+    const [userSearchValue, setUserSearchValue] = useState("");
 
     const [allIngredients, setAllIngredients] = useState([]);
+    const [selectedIngredients, setSelectedIngredients] = useState([]);
+
+    const [filteredRecipes, setFilteredRecipes] = useState([]);
+
+    const [selectedAuthor, setSelectedAuthor] = useState();
+    const [openAuthorRecipesPopUp, setOpenAuthorRecipesPopUp] = useState(false);
+    const [authorRecipes, setAuthorRecipes] = useState();
+    const [areAuthorRecipesLoading, setAreAuthorRecipesLoading] = useState();
+
+    const [sortingByIngredientsNoOrder, setSortingByIngredientsNoOrder] = useState("ascending");
+    const [sortingBySkillLevel, setSortingBySkillLevel] = useState("ascending");
 
     const handleChangePage = (event, newPage) => {
         setPage(newPage);
     };
 
     const handleClosePopUp = () => {
-        setOpenPopUp(false);
+        setOpenRecipePopUp(false);
     };
 
     const handleRowClick = async (recipe) => {
         setSelectedRecipe(recipe);
-        setOpenPopUp(true);
+        setOpenRecipePopUp(true);
 
         setAreRecipeDetailsLoading(true);
 
@@ -53,44 +66,164 @@ function RecipesCard({ areRecipesLoading, recipes, driver }) {
 
     useEffect(() => {
         if (!areRecipesLoading) {
-            setSearchedRecipes(recipes);
+            setFilteredRecipes(recipes);
         }
     }, [areRecipesLoading]);
 
     const handleSearchChange = (event) => {
-        const searchTerm = event.target.value.toLowerCase();
-        const searchTerms = searchTerm.split(" ").filter(term => term);
-        const filteredRecipes = recipes.filter(recipe =>
-            searchTerms.every(term =>
-                recipe.recipeName.toLowerCase().includes(term)
-            )
-        );
-        setSearchedRecipes(filteredRecipes);
+        const value = event.target.value;
+
+        setUserSearchValue(value);
     };
 
     async function getAllIngredients() {
         const { records } = await driver.executeQuery(
-          "MATCH (i:Ingredient) " +
-          "RETURN i.name as ingredientsName " +
-          "ORDER BY toLower(trim(i.name)) "
+            "MATCH (i:Ingredient) " +
+            "RETURN i.name as ingredientsName " +
+            "ORDER BY toLower(trim(i.name)) "
         )
 
         setAllIngredients(records.map(record => record.get('ingredientsName')));
     }
-    
+
     useEffect(() => {
         getAllIngredients();
-    });
+    }, []);
+
+    const handleIngredientSelect = (event, newValue) => {
+        if (newValue !== "" && newValue && !selectedIngredients.includes(newValue)) {
+            setSelectedIngredients([...selectedIngredients, newValue]);
+            event.target.value = "";
+        }
+    };
+
+    const handleRemoveSelectedIngredient = (index) => {
+        const updatedIngredients = [...selectedIngredients];
+        updatedIngredients.splice(index, 1);
+        setSelectedIngredients(updatedIngredients);
+    };
+
+    const searchRecipesByUserInput = () => {
+        if (userSearchValue === "") {
+            return recipes;
+        }
+        else {
+            const searchTerms = userSearchValue.toLowerCase().split(" ").filter(term => term);
+            return recipes.filter(recipe =>
+                searchTerms.every(term =>
+                    recipe.recipeName.toLowerCase().includes(term)
+                )
+            ); 
+        }
+    }
+
+    const filterRecipesByIngredients = (filteredRecipesBySearch) => {
+        if (selectedIngredients.length === 0) {
+            setFilteredRecipes(filteredRecipesBySearch);
+        }
+        else if (selectedIngredients.length !== 0) {
+            const filteredRecipesByIngredients = filteredRecipesBySearch.filter(recipe => {
+                return selectedIngredients.every(ingredient => recipe.ingredientsList.includes(ingredient));
+            });
+            setFilteredRecipes(filteredRecipesByIngredients);
+        }
+    }
+
+    useEffect(() => {
+        if (!areRecipesLoading) {
+            setPage(0);
+            setSortingByIngredientsNoOrder("ascending");
+            setSortingBySkillLevel("ascending");
+
+            let filteredRecipesBySearch = searchRecipesByUserInput();
+
+            filterRecipesByIngredients(filteredRecipesBySearch)
+        }
+    }, [selectedIngredients, userSearchValue]);
+
+    const handleAuthorCellClick = async (authorName) => {
+        setSelectedAuthor(authorName);
+        setOpenAuthorRecipesPopUp(true);
+
+        setAreAuthorRecipesLoading(true);
+
+        const { records } = await driver.executeQuery(
+            "MATCH (a:Author {name: $authorName})-[:WROTE]->(r:Recipe) " +
+            "RETURN COLLECT(r.name) as recipesAuthorList ", { authorName: authorName }
+        )
+
+        setAuthorRecipes(records[0].get('recipesAuthorList'))
+
+        setAreAuthorRecipesLoading(false);
+    }
+
+    const handleCloseAuthorPopUp = () => {
+        setOpenAuthorRecipesPopUp(false);
+    };
+
+    const handleSortByIngredientsNo = () => {
+        const sortedByIngredintsNoRecipes = [...filteredRecipes];
+
+        if(sortingByIngredientsNoOrder === "ascending") {
+            sortedByIngredintsNoRecipes.sort((a, b) => a.ingredientsList.length - b.ingredientsList.length);
+            setSortingByIngredientsNoOrder("descending");
+        } else if(sortingByIngredientsNoOrder === "descending"){
+            sortedByIngredintsNoRecipes.sort((a, b) => b.ingredientsList.length - a.ingredientsList.length);
+            setSortingByIngredientsNoOrder("ascending");
+        }
+
+        
+        setFilteredRecipes(sortedByIngredintsNoRecipes);
+    }
+
+    const handleSortBySkillLevel = () => {
+        const sortedBySkillLevel = [...filteredRecipes];
+
+        const skillLevelsOrder = {
+            "Easy": 1,
+            "More effort": 2,
+            "A challenge": 3
+        };
+
+        if(sortingBySkillLevel === "ascending") {
+            sortedBySkillLevel.sort((a, b) => skillLevelsOrder[a.skillLevel] - skillLevelsOrder[b.skillLevel]);
+            setSortingBySkillLevel("descending");
+        } else if(sortingBySkillLevel === "descending"){
+            sortedBySkillLevel.sort((a, b) => skillLevelsOrder[b.skillLevel] - skillLevelsOrder[a.skillLevel]);
+            setSortingBySkillLevel("ascending")
+        }
+        
+
+        setFilteredRecipes(sortedBySkillLevel);
+    }
 
     return (
         <Grid container direction="row" gap="20px">
-            <Grid item container style={{ width: '14%' }} direction="column">
-                <Autocomplete
-                    fullWidth
-                    disablePortal
-                    options = {allIngredients}
-                    renderInput={(params) => <TextField {...params} label="Ingredints" />}
-                />
+            <Grid item container style={{ width: '14%' }} direction="column" gap="20px">
+                <Grid item>
+                    <Autocomplete
+                        fullWidth
+                        disablePortal
+                        options={allIngredients}
+                        onChange={handleIngredientSelect}
+                        renderInput={(params) => <TextField {...params} label="Ingredints" />}
+                    />
+                </Grid>
+                <Grid item container gap="10px" direction="column">
+                    {selectedIngredients.map((ingredient, index) => (
+                        <Grid item key={index}>
+                            <Paper elevation={3} style={{ padding: '10px' }}>
+                                <Typography>{ingredient}</Typography>
+
+                                <Grid container justifyContent="flex-end">
+                                    <IconButton onClick={() => handleRemoveSelectedIngredient(index)}>
+                                        <Typography color="error">Remove</Typography>
+                                    </IconButton>
+                                </Grid>
+                            </Paper>
+                        </Grid>
+                    ))}
+                </Grid>
             </Grid>
             <Grid item container direction="column" gap="15px" style={{ width: '84%' }}>
                 <Grid item style={{ width: '100%' }}>
@@ -98,10 +231,11 @@ function RecipesCard({ areRecipesLoading, recipes, driver }) {
                         fullWidth
                         label="Search recipe"
                         variant="filled"
+                        value={userSearchValue}
                         onChange={handleSearchChange} />
                 </Grid>
                 <Grid item style={{ width: '100%' }}>
-                    <Card>
+                    <Card sx={{border: '2px solid black', borderRadius: 2}} variant="outlined">
                         {areRecipesLoading ?
                             (
                                 <LinearProgress />
@@ -119,17 +253,28 @@ function RecipesCard({ areRecipesLoading, recipes, driver }) {
                                                     </TableCell>
                                                     <TableCell>
                                                         <strong>Number of ingredients</strong>
+                                                        <IconButton onClick={handleSortByIngredientsNo}>
+                                                            <SortIcon/>
+                                                        </IconButton>
                                                     </TableCell>
                                                     <TableCell>
                                                         <strong>Skill Level</strong>
+                                                        <IconButton onClick={handleSortBySkillLevel}>
+                                                            <SortIcon/>
+                                                        </IconButton>
                                                     </TableCell>
                                                 </TableRow>
                                             </TableHead>
                                             <TableBody>
-                                                {searchedRecipes.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((recipe, index) => (
-                                                    <TableRow key={index} onClick={() => handleRowClick(recipe)}>
-                                                        <TableCell>{recipe.recipeName}</TableCell>
-                                                        <TableCell>{recipe.authorName}</TableCell>
+                                                {filteredRecipes.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((recipe, index) => (
+                                                    <TableRow key={index}>
+                                                        <TableCell onClick={() => handleRowClick(recipe)}>
+                                                            {recipe.recipeName}
+                                                        </TableCell>
+
+                                                        <TableCell onClick={() => {handleAuthorCellClick(recipe.authorName)}}>
+                                                            {recipe.authorName}
+                                                        </TableCell>
                                                         <TableCell>{recipe.ingredientCount}</TableCell>
                                                         <TableCell>{recipe.skillLevel}</TableCell>
                                                     </TableRow>))}
@@ -138,7 +283,7 @@ function RecipesCard({ areRecipesLoading, recipes, driver }) {
                                     </TableContainer>
                                     <TablePagination
                                         component="div"
-                                        count={searchedRecipes.length}
+                                        count={filteredRecipes.length}
                                         rowsPerPage={rowsPerPage}
                                         page={page}
                                         onPageChange={handleChangePage}
@@ -149,13 +294,13 @@ function RecipesCard({ areRecipesLoading, recipes, driver }) {
                 </Grid>
                 <Grid item>
                     {areRecipeDetailsLoading == null || areRecipeDetailsLoading === true ?
-                        (<Dialog open={openPopUp} onClose={handleClosePopUp} fullWidth>
+                        (<Dialog open={openRecipePopUp} onClose={handleClosePopUp} fullWidth>
                             <DialogContent>
                                 <LinearProgress />
                             </DialogContent>
                         </Dialog>)
                         :
-                        (<Dialog open={openPopUp} onClose={handleClosePopUp}>
+                        (<Dialog open={openRecipePopUp} onClose={handleClosePopUp}>
                             <DialogTitle>{selectedRecipe.recipeName}</DialogTitle>
                             <DialogContent style={{ overflow: 'hidden' }}>
                                 <DialogContentText>
@@ -187,6 +332,33 @@ function RecipesCard({ areRecipesLoading, recipes, driver }) {
                                             </ListItemIcon>
 
                                             <ListItemText primary={ingredient} />
+                                        </ListItem>
+                                    ))}
+                                </List>
+
+                            </DialogContent>
+                        </Dialog>)}
+                </Grid>
+                <Grid item>
+                    {areAuthorRecipesLoading == null || areAuthorRecipesLoading === true ?
+                        (<Dialog open={openAuthorRecipesPopUp} onClose={handleCloseAuthorPopUp} fullWidth>
+                            <DialogContent>
+                                <LinearProgress />
+                            </DialogContent>
+                        </Dialog>)
+                        :
+                        (<Dialog open={openAuthorRecipesPopUp} onClose={handleCloseAuthorPopUp}>
+                            <DialogTitle>Published recipes by <b>{selectedAuthor}</b></DialogTitle> 
+
+                            <DialogContent>
+                                <List>
+                                    {authorRecipes.map((recipe, index) => (
+                                        <ListItem key={index}>
+                                            <ListItemIcon>
+                                                <FiberManualRecordIcon fontSize="10px" />
+                                            </ListItemIcon>
+
+                                            <ListItemText primary={recipe} />
                                         </ListItem>
                                     ))}
                                 </List>
