@@ -4,6 +4,9 @@ import { Grid } from '@mui/material';
 
 import RecipesCard from './RecipesCard';
 import AppHeader from './AppHeader';
+import NewsCard from './NewsCard';
+
+import "./PageStyles.css";
 
 function App() {
   const [recipes, setRecipes] = useState();
@@ -38,13 +41,15 @@ function App() {
       <Grid item>
         <AppHeader />
       </Grid>
-      <Grid item>
+      <Grid item style={{maxHeight: "1300px"}}>
         <RecipesCard
           areRecipesLoading={areRecipesLoading}
           recipes={recipes}
           driver={driver} />
       </Grid>
-
+      <Grid item>
+        <NewsCard driver={driver}/>
+      </Grid>
     </Grid>
   );
 }

@@ -9,17 +9,19 @@ import { AppBar, Typography, Toolbar, Grid } from "@mui/material";
 function AppHeader() {
     return (
         /* App Bar for Header */
-        <AppBar position="static" style={{ backgroundColor: '#F0F0F0' }}>
+        <AppBar position="static" style={{ backgroundColor: '#ffb74d' }}>
             <Toolbar>
                 {/* Title */}
-                <Grid item>
+                <Grid container justifyContent='flex-end'>
+                    <Grid item>
                         <Typography
                             variant="h6"
                             align='center'
-                            style={{ color: 'black' }}>
-                            RECIPES GLOSSARY
+                            style={{ color: 'black', letterSpacing: '7px' }}>
+                            <strong>RECIPES GLOSSARY</strong>
                         </Typography>
                     </Grid>
+                </Grid>
             </Toolbar>
 
         </AppBar>

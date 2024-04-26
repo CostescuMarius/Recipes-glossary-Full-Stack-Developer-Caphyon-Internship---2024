@@ -9,6 +9,8 @@ import {
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import SortIcon from '@mui/icons-material/Sort';
 
+import Client from '@elastic/elasticsearch';
+
 function RecipesCard({ areRecipesLoading, recipes, driver }) {
     const rowsPerPage = 20;
 
@@ -26,13 +28,12 @@ function RecipesCard({ areRecipesLoading, recipes, driver }) {
 
     const [filteredRecipes, setFilteredRecipes] = useState([]);
 
-    const [selectedAuthor, setSelectedAuthor] = useState();
     const [openAuthorRecipesPopUp, setOpenAuthorRecipesPopUp] = useState(false);
     const [authorRecipes, setAuthorRecipes] = useState();
     const [areAuthorRecipesLoading, setAreAuthorRecipesLoading] = useState();
 
-    const [sortingByIngredientsNoOrder, setSortingByIngredientsNoOrder] = useState("ascending");
-    const [sortingBySkillLevel, setSortingBySkillLevel] = useState("ascending");
+    const [sortingByIngredientsNoOrder, setSortingByIngredientsNoOrder] = useState("");
+    const [sortingBySkillLevel, setSortingBySkillLevel] = useState("");
 
     const handleChangePage = (event, newPage) => {
         setPage(newPage);
@@ -49,16 +50,26 @@ function RecipesCard({ areRecipesLoading, recipes, driver }) {
         setAreRecipeDetailsLoading(true);
 
         const { records } = await driver.executeQuery(
-            "MATCH (r:Recipe {name: $recipeName}) " +
-            "RETURN r.description as recipeDescription, r.preparationTime as recipePreparationTime, " +
-            "r.cookingTime as recipeCookingTime", { recipeName: recipe.recipeName }
+            "MATCH (r:Recipe {name: $recipeName}) " + 
+            "OPTIONAL MATCH (r)-[:COLLECTION]->(c:Collection) " +
+            "OPTIONAL MATCH (r)-[:KEYWORD]->(k:Keyword) " +
+            "OPTIONAL MATCH (r)-[:DIET_TYPE]->(d:DietType) " +
+            "RETURN r.description as recipeDescription, " +
+            "r.preparationTime as recipePreparationTime, " +
+            "r.cookingTime as recipeCookingTime, " +
+            "collect(DISTINCT c.name) as collectionList, " +
+            "collect(DISTINCT k.name) as keywords, " +
+            "collect(DISTINCT d.name) as dietTypes", { recipeName: recipe.recipeName }
         )
 
         setRecipeDetails(
             {
                 recipeDescription: records[0].get('recipeDescription'),
                 recipePreparationTime: Number(records[0].get('recipePreparationTime').low),
-                recipeCookingTime: Number(records[0].get('recipeCookingTime').low)
+                recipeCookingTime: Number(records[0].get('recipeCookingTime').low),
+                collectionList: records[0].get('collectionList'),
+                keywords: records[0].get('keywords'),
+                dietTypes: records[0].get('dietTypes')
             })
 
         setAreRecipeDetailsLoading(false);
@@ -113,7 +124,7 @@ function RecipesCard({ areRecipesLoading, recipes, driver }) {
                 searchTerms.every(term =>
                     recipe.recipeName.toLowerCase().includes(term)
                 )
-            ); 
+            );
         }
     }
 
@@ -132,8 +143,9 @@ function RecipesCard({ areRecipesLoading, recipes, driver }) {
     useEffect(() => {
         if (!areRecipesLoading) {
             setPage(0);
-            setSortingByIngredientsNoOrder("ascending");
-            setSortingBySkillLevel("ascending");
+            setSortingByIngredientsNoOrder("");
+
+            setSortingBySkillLevel("");
 
             let filteredRecipesBySearch = searchRecipesByUserInput();
 
@@ -142,7 +154,6 @@ function RecipesCard({ areRecipesLoading, recipes, driver }) {
     }, [selectedIngredients, userSearchValue]);
 
     const handleAuthorCellClick = async (authorName) => {
-        setSelectedAuthor(authorName);
         setOpenAuthorRecipesPopUp(true);
 
         setAreAuthorRecipesLoading(true);
@@ -152,7 +163,10 @@ function RecipesCard({ areRecipesLoading, recipes, driver }) {
             "RETURN COLLECT(r.name) as recipesAuthorList ", { authorName: authorName }
         )
 
-        setAuthorRecipes(records[0].get('recipesAuthorList'))
+        setAuthorRecipes({
+            authorName: authorName,
+            recipesAuthorList: records[0].get('recipesAuthorList')
+        })
 
         setAreAuthorRecipesLoading(false);
     }
@@ -164,15 +178,15 @@ function RecipesCard({ areRecipesLoading, recipes, driver }) {
     const handleSortByIngredientsNo = () => {
         const sortedByIngredintsNoRecipes = [...filteredRecipes];
 
-        if(sortingByIngredientsNoOrder === "ascending") {
+        if (sortingByIngredientsNoOrder === "ascending" || sortingByIngredientsNoOrder === "") {
             sortedByIngredintsNoRecipes.sort((a, b) => a.ingredientsList.length - b.ingredientsList.length);
             setSortingByIngredientsNoOrder("descending");
-        } else if(sortingByIngredientsNoOrder === "descending"){
+        } else if (sortingByIngredientsNoOrder === "descending") {
             sortedByIngredintsNoRecipes.sort((a, b) => b.ingredientsList.length - a.ingredientsList.length);
             setSortingByIngredientsNoOrder("ascending");
         }
 
-        
+
         setFilteredRecipes(sortedByIngredintsNoRecipes);
     }
 
@@ -185,14 +199,14 @@ function RecipesCard({ areRecipesLoading, recipes, driver }) {
             "A challenge": 3
         };
 
-        if(sortingBySkillLevel === "ascending") {
+        if (sortingBySkillLevel === "ascending" || sortingBySkillLevel === "") {
             sortedBySkillLevel.sort((a, b) => skillLevelsOrder[a.skillLevel] - skillLevelsOrder[b.skillLevel]);
             setSortingBySkillLevel("descending");
-        } else if(sortingBySkillLevel === "descending"){
+        } else if (sortingBySkillLevel === "descending") {
             sortedBySkillLevel.sort((a, b) => skillLevelsOrder[b.skillLevel] - skillLevelsOrder[a.skillLevel]);
             setSortingBySkillLevel("ascending")
         }
-        
+
 
         setFilteredRecipes(sortedBySkillLevel);
     }
@@ -235,7 +249,7 @@ function RecipesCard({ areRecipesLoading, recipes, driver }) {
                         onChange={handleSearchChange} />
                 </Grid>
                 <Grid item style={{ width: '100%' }}>
-                    <Card sx={{border: '2px solid black', borderRadius: 2}} variant="outlined">
+                    <Card variant="outlined">
                         {areRecipesLoading ?
                             (
                                 <LinearProgress />
@@ -254,13 +268,13 @@ function RecipesCard({ areRecipesLoading, recipes, driver }) {
                                                     <TableCell>
                                                         <strong>Number of ingredients</strong>
                                                         <IconButton onClick={handleSortByIngredientsNo}>
-                                                            <SortIcon/>
+                                                            <SortIcon />
                                                         </IconButton>
                                                     </TableCell>
                                                     <TableCell>
                                                         <strong>Skill Level</strong>
                                                         <IconButton onClick={handleSortBySkillLevel}>
-                                                            <SortIcon/>
+                                                            <SortIcon />
                                                         </IconButton>
                                                     </TableCell>
                                                 </TableRow>
@@ -272,7 +286,7 @@ function RecipesCard({ areRecipesLoading, recipes, driver }) {
                                                             {recipe.recipeName}
                                                         </TableCell>
 
-                                                        <TableCell onClick={() => {handleAuthorCellClick(recipe.authorName)}}>
+                                                        <TableCell onClick={() => { handleAuthorCellClick(recipe.authorName) }}>
                                                             {recipe.authorName}
                                                         </TableCell>
                                                         <TableCell>{recipe.ingredientCount}</TableCell>
@@ -300,43 +314,93 @@ function RecipesCard({ areRecipesLoading, recipes, driver }) {
                             </DialogContent>
                         </Dialog>)
                         :
-                        (<Dialog open={openRecipePopUp} onClose={handleClosePopUp}>
+                        (<Dialog open={openRecipePopUp} onClose={handleClosePopUp} scroll="paper">
                             <DialogTitle>{selectedRecipe.recipeName}</DialogTitle>
-                            <DialogContent style={{ overflow: 'hidden' }}>
-                                <DialogContentText>
-                                    <b>Description:</b> {recipeDetails.recipeDescription}
-                                </DialogContentText>
-                            </DialogContent>
-
-                            <DialogContent style={{ overflow: 'hidden' }}>
-                                <DialogContentText>
-                                    <b>Preparation Time:</b> {recipeDetails.recipePreparationTime / 60} min
-                                </DialogContentText>
-                            </DialogContent>
-
-                            <DialogContent style={{ overflow: 'hidden' }}>
-                                <DialogContentText>
-                                    <b>Cooking Time:</b> {recipeDetails.recipeCookingTime / 60} min
-                                </DialogContentText>
-                            </DialogContent>
-
                             <DialogContent>
-                                <DialogContentText>
-                                    <b>Ingredients:</b>
-                                </DialogContentText>
-                                <List>
-                                    {selectedRecipe.ingredientsList.map((ingredient, index) => (
-                                        <ListItem key={index}>
-                                            <ListItemIcon>
-                                                <FiberManualRecordIcon fontSize="10px" />
-                                            </ListItemIcon>
+                                <Grid container gap="20px" direction="column">
+                                    <DialogContentText>
+                                        <b>Description:</b> {recipeDetails.recipeDescription}
+                                    </DialogContentText>
 
-                                            <ListItemText primary={ingredient} />
-                                        </ListItem>
-                                    ))}
-                                </List>
+                                    <DialogContentText >
+                                        <b>Preparation Time:</b> {recipeDetails.recipePreparationTime / 60} min
+                                    </DialogContentText>
 
+
+                                    <DialogContentText>
+                                        <b>Cooking Time:</b> {recipeDetails.recipeCookingTime / 60} min
+                                    </DialogContentText>
+
+                                    <Grid container direction="column">
+                                    <DialogContentText>
+                                        <b>Ingredients:</b>
+                                    </DialogContentText>
+                                    <List>
+                                        {selectedRecipe.ingredientsList.map((ingredient, index) => (
+                                            <ListItem key={index}>
+                                                <ListItemIcon>
+                                                    <FiberManualRecordIcon fontSize="10px" />
+                                                </ListItemIcon>
+
+                                                <ListItemText primary={ingredient} />
+                                            </ListItem>
+                                        ))}
+                                    </List>
+                                    </Grid>
+
+                                    {recipeDetails.collectionList.length !== 0 && <Grid container direction="column">
+                                        <DialogContentText>
+                                            <b>Collections:</b>
+                                        </DialogContentText>
+                                        <List>
+                                            {recipeDetails.collectionList.map((collection, index) => (
+                                                <ListItem key={index}>
+                                                    <ListItemIcon>
+                                                        <FiberManualRecordIcon fontSize="10px" />
+                                                    </ListItemIcon>
+
+                                                    <ListItemText primary={collection} />
+                                                </ListItem>
+                                            ))}
+                                        </List>
+                                    </Grid>}
+
+                                    {recipeDetails.keywords.length !== 0 && <Grid container direction="column">
+                                        <DialogContentText>
+                                            <b>Keywords:</b>
+                                        </DialogContentText>
+                                        <List>
+                                            {recipeDetails.keywords.map((keyword, index) => (
+                                                <ListItem key={index}>
+                                                    <ListItemIcon>
+                                                        <FiberManualRecordIcon fontSize="10px" />
+                                                    </ListItemIcon>
+
+                                                    <ListItemText primary={keyword} />
+                                                </ListItem>
+                                            ))}
+                                        </List>
+                                    </Grid>}
+
+                                    {recipeDetails.dietTypes.length !== 0 && <Grid container direction="column">
+                                        <DialogContentText>
+                                            <b>Diet Types:</b>
+                                        </DialogContentText>
+                                        <List>
+                                            {recipeDetails.dietTypes.map((dietType, index) => (
+                                                <ListItem key={index}>
+                                                    <ListItemIcon>
+                                                        <FiberManualRecordIcon fontSize="10px" />
+                                                    </ListItemIcon>
+
+                                                    <ListItemText primary={dietType} />
+                                                </ListItem>
+                                            ))}
+                                        </List>
+                                    </Grid>}
+                                </Grid>
                             </DialogContent>
+
                         </Dialog>)}
                 </Grid>
                 <Grid item>
@@ -348,11 +412,11 @@ function RecipesCard({ areRecipesLoading, recipes, driver }) {
                         </Dialog>)
                         :
                         (<Dialog open={openAuthorRecipesPopUp} onClose={handleCloseAuthorPopUp}>
-                            <DialogTitle>Published recipes by <b>{selectedAuthor}</b></DialogTitle> 
+                            <DialogTitle>Published recipes by <b>{authorRecipes.authorName}</b></DialogTitle>
 
                             <DialogContent>
                                 <List>
-                                    {authorRecipes.map((recipe, index) => (
+                                    {authorRecipes.recipesAuthorList.map((recipe, index) => (
                                         <ListItem key={index}>
                                             <ListItemIcon>
                                                 <FiberManualRecordIcon fontSize="10px" />
