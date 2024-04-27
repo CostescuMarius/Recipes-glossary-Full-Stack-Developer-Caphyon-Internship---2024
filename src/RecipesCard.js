@@ -4,12 +4,13 @@ import {
     TableRow, TableCell, TableContainer, TablePagination,
     LinearProgress, Grid, Dialog, DialogTitle, DialogContent, DialogContentText,
     List, ListItem, ListItemText, ListItemIcon, TextField, Autocomplete, Paper,
-    Typography, IconButton
+    Typography, IconButton,
+    ListItemAvatar
 } from '@mui/material';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import SortIcon from '@mui/icons-material/Sort';
-
-import Client from '@elastic/elasticsearch';
+import StarRateIcon from '@mui/icons-material/StarRate';
+import StarRate from '@mui/icons-material/StarRate';
 
 function RecipesCard({ areRecipesLoading, recipes, driver }) {
     const rowsPerPage = 20;
@@ -50,7 +51,7 @@ function RecipesCard({ areRecipesLoading, recipes, driver }) {
         setAreRecipeDetailsLoading(true);
 
         const { records } = await driver.executeQuery(
-            "MATCH (r:Recipe {name: $recipeName}) " + 
+            "MATCH (r:Recipe {name: $recipeName}) " +
             "OPTIONAL MATCH (r)-[:COLLECTION]->(c:Collection) " +
             "OPTIONAL MATCH (r)-[:KEYWORD]->(k:Keyword) " +
             "OPTIONAL MATCH (r)-[:DIET_TYPE]->(d:DietType) " +
@@ -62,6 +63,14 @@ function RecipesCard({ areRecipesLoading, recipes, driver }) {
             "collect(DISTINCT d.name) as dietTypes", { recipeName: recipe.recipeName }
         )
 
+        const similarRecipes = recipes.map(otherRecipe => ({
+            recipeName: otherRecipe.recipeName,
+            recipeDescription: otherRecipe.recipeDescription,
+            similarity: computeSimilarity(recipe, otherRecipe)
+        }));
+
+        similarRecipes.sort((a, b) => b.similarity - a.similarity);
+
         setRecipeDetails(
             {
                 recipeDescription: records[0].get('recipeDescription'),
@@ -69,10 +78,23 @@ function RecipesCard({ areRecipesLoading, recipes, driver }) {
                 recipeCookingTime: Number(records[0].get('recipeCookingTime').low),
                 collectionList: records[0].get('collectionList'),
                 keywords: records[0].get('keywords'),
-                dietTypes: records[0].get('dietTypes')
-            })
+                dietTypes: records[0].get('dietTypes'),
+                similarRecipes: similarRecipes.slice(1, 6)
+            }
+        )
 
         setAreRecipeDetailsLoading(false);
+    }
+
+    function computeSimilarity(recipe1, recipe2) {
+        const commonElements = recipe1.ingredientsList.filter(ingredient => recipe2.ingredientsList.includes(ingredient));
+
+        if (commonElements.length === 0) {
+            return 0;
+        }
+
+        const similarity = commonElements.length / (recipe1.ingredientsList.length + recipe2.ingredientsList.length - commonElements.length);
+        return similarity;
     }
 
     useEffect(() => {
@@ -332,20 +354,20 @@ function RecipesCard({ areRecipesLoading, recipes, driver }) {
                                     </DialogContentText>
 
                                     <Grid container direction="column">
-                                    <DialogContentText>
-                                        <b>Ingredients:</b>
-                                    </DialogContentText>
-                                    <List>
-                                        {selectedRecipe.ingredientsList.map((ingredient, index) => (
-                                            <ListItem key={index}>
-                                                <ListItemIcon>
-                                                    <FiberManualRecordIcon fontSize="10px" />
-                                                </ListItemIcon>
+                                        <DialogContentText>
+                                            <b>Ingredients:</b>
+                                        </DialogContentText>
+                                        <List>
+                                            {selectedRecipe.ingredientsList.map((ingredient, index) => (
+                                                <ListItem key={index}>
+                                                    <ListItemIcon>
+                                                        <FiberManualRecordIcon fontSize="10px" />
+                                                    </ListItemIcon>
 
-                                                <ListItemText primary={ingredient} />
-                                            </ListItem>
-                                        ))}
-                                    </List>
+                                                    <ListItemText primary={ingredient} />
+                                                </ListItem>
+                                            ))}
+                                        </List>
                                     </Grid>
 
                                     {recipeDetails.collectionList.length !== 0 && <Grid container direction="column">
@@ -394,6 +416,39 @@ function RecipesCard({ areRecipesLoading, recipes, driver }) {
                                                     </ListItemIcon>
 
                                                     <ListItemText primary={dietType} />
+                                                </ListItem>
+                                            ))}
+                                        </List>
+                                    </Grid>}
+
+                                    {recipeDetails.similarRecipes.length !== 0 && <Grid container direction="column">
+                                        <DialogContentText>
+                                            <b>Similar recipes:</b>
+                                        </DialogContentText>
+                                        <List>
+                                            {recipeDetails.similarRecipes.map((similarRecipe, index) => (
+                                                <ListItem key={index}>
+                                                    <ListItemAvatar>
+                                                        <StarRate fontSize="10px" />
+                                                    </ListItemAvatar>
+
+                                                    <ListItemText
+                                                        primary={
+                                                            <Grid container component={'span'} gap={"15px"} direction="column">
+                                                                <Grid item> 
+                                                                    <Typography color="primary" component={'span'}>
+                                                                        Similarity factor {Math.round(similarRecipe.similarity.toFixed(2) * 100)}%
+                                                                    </Typography>
+                                                                </Grid>
+
+                                                                <Grid item>
+                                                                    <Typography component={'span'}>
+                                                                        {similarRecipe.recipeName}
+                                                                    </Typography>
+                                                                </Grid>
+                                                            </Grid>}
+                                                        secondary={similarRecipe.recipeDescription}
+                                                    />
                                                 </ListItem>
                                             ))}
                                         </List>

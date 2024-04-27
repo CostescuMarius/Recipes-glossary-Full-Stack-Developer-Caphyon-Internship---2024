@@ -8,7 +8,7 @@ import NewsCard from './NewsCard';
 
 import "./PageStyles.css";
 
-function App() {
+function HomePage() {
   const [recipes, setRecipes] = useState();
   const [areRecipesLoading, setAreRecipesLoading] = useState(true);
 
@@ -17,7 +17,7 @@ function App() {
   async function getRecipes() {
     const { records } = await driver.executeQuery(
       "MATCH (a:Author)-[:WROTE]->(r:Recipe) MATCH (r)-[:CONTAINS_INGREDIENT]->(i:Ingredient) " +
-      "RETURN a.name AS authorName, r.name AS recipeName, r.skillLevel AS recipeSkillLevel, COLLECT(i.name) as ingredientsList " +
+      "RETURN a.name AS authorName, r.name AS recipeName, r.description as recipeDescription, r.skillLevel AS recipeSkillLevel, COLLECT(i.name) as ingredientsList " +
       "ORDER BY toLower(trim(r.name)) "
     )
 
@@ -27,6 +27,7 @@ function App() {
       ingredientCount: record.get('ingredientsList').length,
       skillLevel: record.get('recipeSkillLevel'),
       ingredientsList: record.get('ingredientsList'),
+      recipeDescription: record.get('recipeDescription')
     })));
 
     setAreRecipesLoading(false);
@@ -54,4 +55,4 @@ function App() {
   );
 }
 
-export default App;
+export default HomePage;
