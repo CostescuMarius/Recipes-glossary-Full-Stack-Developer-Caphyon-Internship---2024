@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useContext } from "react";
+
+import RecipesContext from "../context/RecipesContext";
 
 import {
     Grid, LinearProgress, Card, CardContent,
@@ -9,13 +11,25 @@ import {
 
 import TurnedInNotIcon from '@mui/icons-material/TurnedInNot';
 
-function NewsCard({ driver }) {
+/**
+ * React component for displaying information about recipes, authors and ingredients ranking.
+ * 
+ * @returns {JSX.Element} The JSX representation of the NewsCard component.
+ */
+function NewsCard() {
+    // Access Neo4j driver from context
+    const { driver } = useContext(RecipesContext);
+
+    // State variable for data and loading status
     const [areInfoLoading, setAreInfoLoading] = useState(true);
 
     const [mostCommonIngredients, setMostCommonIngredients] = useState([]);
     const [mostProlificAuthors, setMostProlificAuthors] = useState([]);
     const [mostComplexRecipes, setMostComplexRecipes] = useState([]);
 
+    /**
+     * Function to get the 5 most common ingredients from the Neo4j database.
+     */
     const get5MostCommonIngredients = async () => {
         const { records } = await driver.executeQuery(
             "MATCH (r:Recipe)-[:CONTAINS_INGREDIENT]->(i:Ingredient) " +
@@ -30,6 +44,9 @@ function NewsCard({ driver }) {
         })));
     }
 
+    /**
+     * Function to get the 5 most prolific authors from the Neo4j database.
+     */
     const get5MostProlificAuthors = async () => {
         const { records } = await driver.executeQuery(
             "MATCH (a:Author)-[:WROTE]->(r:Recipe) " +
@@ -44,6 +61,9 @@ function NewsCard({ driver }) {
         })));
     }
 
+    /**
+     * Function to get the 5 most complex recipes from the Neo4j database.
+     */
     const get5MostComplexRecipes = async () => {
         const { records } = await driver.executeQuery(
             "MATCH (a:Author)-[:WROTE]->(r:Recipe) " +
@@ -60,6 +80,7 @@ function NewsCard({ driver }) {
         })));
     }
 
+    // Fetch data on component mount
     useEffect(() => {
         Promise.all([
             get5MostCommonIngredients(),
@@ -72,13 +93,17 @@ function NewsCard({ driver }) {
 
     return (
         <Grid>
-            <Card variant="outlined" style={{borderRadius: "10px", marginLeft: '10px', marginRight: '10px',  marginBottom: '10px'}}>
+            {/* Card displaying the 3 TOPs */}
+            <Card variant="outlined" style={{ borderRadius: "10px", marginLeft: '10px', marginRight: '10px', marginBottom: '10px' }}>
                 {areInfoLoading ?
                     (
+                        // Display loading indicator if data is loading
                         <LinearProgress />
                     ) : (
+                        // Display TOPs
                         <CardContent>
                             <Grid container justifyContent="space-between" direction="row">
+                                {/* Most common ingredients */}
                                 <Grid item container direction="column" style={{ width: "fit-content" }}>
                                     <Grid item>
                                         <Typography variant="h6" fontWeight="bold">Most common ingredients</Typography>
@@ -88,7 +113,7 @@ function NewsCard({ driver }) {
                                             {mostCommonIngredients.map((commonIngredient, index) => (
                                                 <ListItem key={index}>
                                                     <ListItemAvatar>
-                                                        <TurnedInNotIcon/>
+                                                        <TurnedInNotIcon />
                                                     </ListItemAvatar>
                                                     <ListItemText
                                                         primary={commonIngredient.ingredientName}
@@ -102,17 +127,18 @@ function NewsCard({ driver }) {
                                         </List>
                                     </Grid>
                                 </Grid>
-
+                                
+                                {/* Most prolific authors */}
                                 <Grid item container direction="column" style={{ width: "fit-content" }}>
                                     <Grid item>
-                                        <Typography  variant="h6" fontWeight="bold">Most prolific authors</Typography>
+                                        <Typography variant="h6" fontWeight="bold">Most prolific authors</Typography>
                                     </Grid>
                                     <Grid item>
                                         <List>
                                             {mostProlificAuthors.map((prolificAuthor, index) => (
-                                                <ListItem key={index}  sx={{ display: 'flex', justifyContent: 'center' }}>
+                                                <ListItem key={index} sx={{ display: 'flex', justifyContent: 'center' }}>
                                                     <ListItemAvatar>
-                                                        <TurnedInNotIcon/>
+                                                        <TurnedInNotIcon />
                                                     </ListItemAvatar>
                                                     <ListItemText
                                                         primary={prolificAuthor.authorName}
@@ -127,16 +153,17 @@ function NewsCard({ driver }) {
                                     </Grid>
                                 </Grid>
 
+                                {/* Most complex recipes */}
                                 <Grid item container direction="column" style={{ width: "fit-content" }}>
                                     <Grid item>
-                                        <Typography  variant="h6" fontWeight="bold">Most complex recipes</Typography>
+                                        <Typography variant="h6" fontWeight="bold">Most complex recipes</Typography>
                                     </Grid>
                                     <Grid item>
                                         <List>
                                             {mostComplexRecipes.map((complexRecipe, index) => (
                                                 <ListItem key={index}>
                                                     <ListItemAvatar>
-                                                        <TurnedInNotIcon/>
+                                                        <TurnedInNotIcon />
                                                     </ListItemAvatar>
                                                     <ListItemText
                                                         primary={complexRecipe.recipeName}
@@ -156,10 +183,9 @@ function NewsCard({ driver }) {
                                         </List>
                                     </Grid>
                                 </Grid>
-
                             </Grid>
-
-                        </CardContent>)}
+                        </CardContent>
+                    )}
             </Card>
         </Grid>
     );
