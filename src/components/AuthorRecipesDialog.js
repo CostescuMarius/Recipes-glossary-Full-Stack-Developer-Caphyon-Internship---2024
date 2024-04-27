@@ -65,7 +65,7 @@ function AuthorRecipesDialog({ openAuthorRecipesPopUp, handleCloseAuthorPopUp, s
                 :
                 // Display author recipes
                 (<Dialog open={openAuthorRecipesPopUp} onClose={handleCloseAuthorPopUp}>
-                    <DialogTitle>Published recipes by <b>{authorRecipes.authorName}</b></DialogTitle>
+                    <DialogTitle>Published recipes by <b>{selectedAuthor}</b></DialogTitle>
 
                     <DialogContent>
                         <List>
